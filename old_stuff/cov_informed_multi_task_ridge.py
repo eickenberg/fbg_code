@@ -22,7 +22,7 @@ Y_val_noise = (z_scored_Y_val_runs - z_scored_Y_val_runs.mean(-1)[..., np.newaxi
 from covariance_on_connectivity import make_cov
 
 connectivity = np.load(
-    "/volatile/stuff/sparse_connectivity_mesh.npy").item().tocsr()
+    "/volatile/cache/sparse_connectivity_mesh.npy").item().tocsr()
 
 set_diag = True
 if set_diag:
