@@ -162,7 +162,7 @@ if __name__ == "__main__":
             callback=cb,
             m=10,  # memory budget
             max_bfgs_iter=maxit)
-        plt.plot(energies - np.mean(energies), label="r=%i" % r)
+        plt.plot(energies - np.min(energies), label="r=%i" % r)
 
     # prettify plots
     plt.legend()
