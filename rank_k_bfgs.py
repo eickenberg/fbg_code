@@ -5,26 +5,26 @@
 """
 
 import numpy as np
+import numexpr as ne
 from scipy.optimize import fmin_l_bfgs_b  # XXX better than bfgs
 from sklearn.linear_model import Ridge
 from scipy.sparse.linalg import svds
 import matplotlib.pyplot as plt
 
 
-def f(U, V, X, Y, alpha1, alpha2):
+def f(U, V, X, Y, alpha1, alpha2, out=None, callback=None):
     """The (non-convex) energy functional"""
     # XXX it be nice to have f return func val and grad too
 
-    loss_value = ((X.dot(U).dot(V.T) - Y) ** 2).sum()
+    #loss_value = ((X.dot(U).dot(V.T) - Y) ** 2).sum()
+    Z = (X.dot(U).dot(V.T) - Y)
+    loss_value = (ne.evaluate("Z * Z")).sum()
 
-    penalization = alpha1 * (U ** 2).sum() + alpha2 * (V ** 2).sum()
+    penalization = alpha1 * ne.evaluate("U * U").sum() + alpha2 * ne.evaluate("V * V").sum()
 
-    return .5 * loss_value + .5 * penalization
-
-
-def grad_f(U, V, X, Y, alpha1, alpha2, out=None):
-    """The gradient of the energy functional in np.vstack([U, V])"""
-    XT_residuals = X.T.dot((X.dot(U).dot(V.T) - Y))
+    # Compute gradient
+    #XT_residuals = X.T.dot((X.dot(U).dot(V.T) - Y))
+    XT_residuals = X.T.dot(Z)
 
     grad_VT = U.T.dot(XT_residuals) + alpha1 * V.T
     grad_U = XT_residuals.dot(V) + alpha2 * U
@@ -35,39 +35,25 @@ def grad_f(U, V, X, Y, alpha1, alpha2, out=None):
     out[:U.shape[0]] = grad_U
     out[U.shape[0]:] = grad_VT.T
 
-    return out
+    energy = .5 * loss_value + .5 * penalization
+    if callback is not None:
+        callback(energy)
+        
+    return energy, out.ravel()
 
-
-def get_vec_func(X, Y, alpha1, alpha2, rank, n_features):
+def get_vec_and_grad_func(X, Y, alpha1, alpha2, rank, n_features, callback=None):
     """Returns a function that takes a single column vector and
     reshapes into the apriate rank k matrices and then calculates
     the functional"""
 
-    def vecfunc(vecUV):
+    def vecfunc(vecUV, out=None):
         concat_matrix = vecUV.reshape(-1, rank)
         U = concat_matrix[:n_features]
         V = concat_matrix[n_features:]
 
-        return f(U, V, X, Y, alpha1, alpha2)
+        return f(U, V, X, Y, alpha1, alpha2, out=out, callback=callback)
 
     return vecfunc
-
-
-def get_grad_func(X, Y, alpha1, alpha2, rank, n_features):
-    """Returns function that takes a single column vector and
-    reshapes into the appropriate rank k matrices and then calculates
-    the gradient of the functional"""
-
-    def vecgrad(vecUV, out=None):
-        concat_matrix = vecUV.reshape(-1, rank)
-        U = concat_matrix[:n_features]
-        V = concat_matrix[n_features:]
-
-        gradient = grad_f(U, V, X, Y, alpha1, alpha2, out=out)
-
-        return gradient.ravel()
-
-    return vecgrad
 
 
 def rank_constrained_least_squares(X, Y, rank, alpha1, alpha2=None,
@@ -86,8 +72,8 @@ def rank_constrained_least_squares(X, Y, rank, alpha1, alpha2=None,
     if alpha2 is None:
         alpha2 = alpha1
 
-    energy_function = get_vec_func(X, Y, alpha1, alpha2, rank, len(X.T))
-    energy_gradient = get_grad_func(X, Y, alpha1, alpha2, rank, len(X.T))
+    energy_function = get_vec_and_grad_func(X, Y, alpha1, alpha2, rank, X.shape[1], callback=callback)
+    #energy_gradient = get_grad_func(X, Y, alpha1, alpha2, rank, len(X.T))
 
     # if not already done, initialize U and V
     if V0 is None:
@@ -109,39 +95,45 @@ def rank_constrained_least_squares(X, Y, rank, alpha1, alpha2=None,
 
     result = fmin_l_bfgs_b(energy_function,
                            x0=initial_UV_vec,
-                           fprime=energy_gradient, maxiter=max_bfgs_iter,
+                           #fprime=energy_gradient,
+                           maxiter=max_bfgs_iter,
                            # gtol=gradient_tolerance,
                            m=m,
-                           callback=callback,
-                           iprint=verbose)[0]
+                           #callback=callback,
+                           iprint=verbose)
 
-    concat_matrix = result.reshape(-1, rank)
+    concat_matrix = result[0].reshape(-1, rank)
+    n_features = X.shape[1]
     U_res = concat_matrix[:n_features]
     V_res = concat_matrix[n_features:]
 
-    return U_res, V_res
+    return U_res, V_res, result[1:]
 
 
 if __name__ == "__main__":
+    np.random.seed(0)
+    
     # test functional and gradient
     n_samples, n_features, n_targets, rank = 40, 50, 30, 4
 
     X = np.random.randn(n_samples, n_features)
     Y = np.random.randn(n_samples, n_targets)
 
-    # B = np.random.randn(n_features, n_targets)
-    # func = get_vec_func(X, Y, 1., 1., rank, n_features)
-    # gradient_of_f = get_grad_func(X, Y, 1., 1., rank, n_features)
+    B = np.random.randn(n_features, n_targets)
+    func = get_vec_and_grad_func(X, Y, 1., 1., rank, n_features)
+    #gradient_of_f = get_grad_func(X, Y, 1., 1., rank, n_features)
 
-    # from scipy.optimize import check_grad
-    # for i in range(10):
-    #     U = np.random.randn(n_features, rank)
-    #     V = np.random.randn(n_targets, rank)
-    #     vecUV = np.vstack([U, V]).ravel()
+    from scipy.optimize import check_grad
+    for i in range(10):
+        U = np.random.randn(n_features, rank)
+        V = np.random.randn(n_targets, rank)
+        vecUV = np.vstack([U, V]).ravel()
+        
+        err = check_grad(lambda *args: func(*args)[0],
+                         lambda *args: func(*args)[1], vecUV)
+        print err
 
-    #     err = check_grad(func, gradient_of_f, vecUV)
-    #     print err
-
+    raise Exception
     maxit = 500
     for r in [5, 6, min(X.shape[1], Y.shape[1]) - 1]:
         print "\r\nCase: r = %i" % r

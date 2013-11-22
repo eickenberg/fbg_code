@@ -25,7 +25,7 @@ trndata = data.get_train(masked=ebamask)
 valdata = data.get_val(masked=ebamask)
 
 # Run some shit
-maxit = 200
+maxit = 500
 results = []
 for r in [1, 5, 10, 20, 100]: #range(1, 6):
     print "\r\nCase: r = %i" % r
