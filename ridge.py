@@ -774,6 +774,37 @@ def _multi_r2_score(y_true, y_pred):
     return r2_score.reshape(list(y_pred.shape[:-2]) + [-1])
 
 
+def _multi_corr_score(y_true, y_pred):
+    
+    if y_true.ndim == 1:
+        y_true_ = y_true[:, np.newaxis]
+    else:
+        y_true_ = y_true
+
+    yp = y_pred.reshape([-1] + list(y_true_.shape))
+    yt = y_true.reshape([1] + list(y_true_.shape))
+
+    cyp = yp - yp.mean(axis=1)[:, np.newaxis, :]
+    cyt = yt - yt.mean(axis=1)[:, np.newaxis, :]
+
+    var_yp = (cyp ** 2).sum(axis=1)
+    var_yt = (cyt ** 2).sum(axis=1)
+    # broadcast, because I'm sick of shape related errors
+    var_yt = var_yt * np.ones_like(var_yp)
+
+    cov_yp_yt = (cyp * cyt).sum(axis=1)
+
+    corrs = np.zeros_like(cov_yp_yt)
+
+    var_zero = (var_yp == 0) + (var_yt == 0)
+
+    corrs[var_zero == False] = (cov_yp_yt[var_zero == False] /
+                                np.sqrt(var_yp[var_zero == False]) /
+                                np.sqrt(var_yt[var_zero == False]))
+
+    return corrs.reshape(list(y_pred.shape[:-2]) + [-1])
+
+
 class _RidgeGridCV(LinearModel):
 
     def __init__(self, alpha_min=1e-3, alpha_max=1e8, n_grid_points=5,
