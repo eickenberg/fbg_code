@@ -61,6 +61,8 @@ for r in ranks:
                                                         0., 0.,
                    # U0=rng.randn(X_train.shape[1], r),
                    # V0=rng.randn(Y_train_noisy.shape[1], r),
+                     U0=Uridge[:, :r] * np.sqrt(sridge[:r]),
+                     V0=VridgeT[:r].T * np.sqrt(sridge[:r]),
                      max_bfgs_iter=1000
                                                    )
     results.append(result)
