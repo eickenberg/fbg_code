@@ -63,8 +63,10 @@ def get_val(sessions=None, masked=True, repeats=False):
         sessions = range(3)
 
     if repeats:
-        if masked:
+        if isinstance(masked, bool) and masked:
             return tables.openFile(val_file_repeats).getNode("/alldata").read()
+        elif isinstance(masked, np.ndarray):
+            return tables.openFile(val_file_repeats).getNode("/alldata").read().reshape(270, 30, 10, 100, 100).transpose(0, 1, 3, 4, 2)[:, masked, :]
         else:
             raise Exception("Repeats data is masked")
     else:
