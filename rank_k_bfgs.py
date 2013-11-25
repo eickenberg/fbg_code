@@ -80,7 +80,7 @@ def rank_constrained_least_squares(X, Y, rank, alpha1, alpha2=None,
         if U0 is not None:
             # if only V0 is None initialize U with a least squares
             U = U0.copy()
-            V = np.linalg.pinv(X.dot(U)).dot(Y)
+            V = np.linalg.pinv(X.dot(U)).dot(Y).T
         else:
             # decompose a ridge solution
             _, largest_singular_value_of_X, _ = svds(X, k=1)
@@ -90,6 +90,9 @@ def rank_constrained_least_squares(X, Y, rank, alpha1, alpha2=None,
             U, s, VT = svds(ridge_coef, k=rank)
             V = VT.T * np.sqrt(s)
             U *= np.sqrt(s)[np.newaxis, :]
+    else:
+        U = U0.copy()
+        V = V0.copy()
 
     initial_UV_vec = np.vstack([U, V]).ravel()
 
