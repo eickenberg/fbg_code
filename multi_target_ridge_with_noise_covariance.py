@@ -18,7 +18,8 @@ def _diagonal_operator(diag):
 
     linop = LinearOperator(shape=(len(diag), len(diag)),
                            matvec=diag_matvec,
-                           rmatvec=diag_matvec)
+                           rmatvec=diag_matvec,
+                           dtype=np.float64)
     linop.matvec = diag_matvec
     linop.rmatvec = diag_matvec
 
@@ -94,6 +95,15 @@ def get_inv_diag_plus_low_rank_cov_op(X, rank=2):
                  components.T, components)
 
 
+def energy_functional(X, Y, B, invcovB, invcovN, alpha):
+
+    residuals = X.dot(B) - Y
+    loss = (residuals.T * invcovN.matvec(residuals.T)).sum()
+    pen = (B.T * invcovB.matvec(B.T)).sum()
+
+    return loss + alpha * pen
+
+
 def get_grad_linop(X, Y, invcovB, invcovN, alpha):
     """
     Linear operator implementing the gradient of the functional
@@ -114,20 +124,25 @@ def get_grad_linop(X, Y, invcovB, invcovN, alpha):
             XTXB = XTX.matvec(vecB.reshape(T, P).T)
             XTXB_invcovN = invcovN.rmatvec(XTXB.T).T
             B_incovB = invcovB.rmatvec(vecB.reshape(T, P)).T
-            return XTXB - XTYinvcovN + alpha * B_incovB
+            result =  XTXB - XTYinvcovN + alpha * B_incovB
+            return result.T.ravel()
     else:
+        raise(Exception)
         def matvec(vecB):
             XB_minus_Y_invcovN = invcovN.rmatvec(
                 (X.dot(vecB.reshape(T, P).T) - Y).T)
             XT_XB_minus_Y_invcovN = X.T.dot(XB_minus_Y_invcovN)
             B_incovB = invcovB.rmatvec(vecB.reshape(T, P)).T
-            return XT_XB_minus_Y_invcovN + alpha * B_incovB
+            result = XT_XB_minus_Y_invcovN + alpha * B_incovB
+            return result.T.ravel()
 
     linop = LinearOperator(shape=tuple([X.shape[1] * Y.shape[1]] * 2),
                            matvec=matvec,
-                           rmatvec=matvec)
+                           rmatvec=matvec,
+                           dtype=np.dtype('float64'))
     linop.matvec = matvec
     linop.rmatvec = matvec
+    linop.dtype = np.dtype('float64')
 
     return linop
 
@@ -141,14 +156,65 @@ class MultiTaskRidge(LinearModel):
         self.alpha = alpha
 
     def fit(self, X, Y):
-        linop = get_grad_linop(X, Y, 
+        self.linop = get_grad_linop(X, Y, 
                                self.invcovB, self.invcovN, self.alpha)
-        self.coef_ = cg(linop, np.zeros(X.shape[1] * Y.shape[1]))
+        self.coef_ = cg(self.linop, np.zeros(X.shape[1] * Y.shape[1]))
 
         return self
 
 
 
 if __name__ == "__main__":
-    test_woodbury_inverse()
-    
+    from ridge import _RidgeGridCV
+
+    ridge = _RidgeGridCV(alpha_min=1., alpha_max=1000)
+
+    n_samples, n_features, n_targets = 100, 90, 20
+
+    rng = np.random.RandomState(42)
+
+    signal_levels = rng.randn(n_targets) ** 2
+    global_SNR = 1
+    SNRs = rng.randn(n_targets) ** 2 * global_SNR
+
+    beta = rng.randn(n_features, n_targets) * signal_levels
+
+    X_train = rng.randn(n_samples, n_features)
+    Y_train_clean = X_train.dot(beta)
+
+    signal_level = Y_train_clean.std(0)
+
+    noise = rng.randn(n_samples, n_targets)
+    noise /= noise.std(0)
+
+    Y_train_noisy = Y_train_clean + signal_level / SNRs * noise
+
+    ridge.fit(X_train, Y_train_noisy)
+    ridge_coef = ridge.coef_
+
+    signal_cov = np.diag(ridge.best_alphas)
+    noise_cov = np.diag(SNRs)
+
+    signal_inv_cov = aslinearoperator(np.linalg.inv(signal_cov))
+    noise_inv_cov = aslinearoperator(np.linalg.inv(noise_cov))
+
+    mtr = MultiTaskRidge(signal_inv_cov, noise_inv_cov, 1.)
+
+    mtr.fit(X_train, Y_train_noisy)
+    result = mtr.coef_
+
+    from scipy.optimize import check_grad
+
+    def f(vecB):
+        B = vecB.reshape(n_targets, n_features).T
+        return energy_functional(X_train, 
+                                 Y_train_noisy, 
+                                 B, signal_inv_cov, noise_inv_cov, 1.)
+
+
+    def grad_f(vecB):
+        return mtr.linop.matvec(vecB)
+
+    err = check_grad(f, grad_f, np.zeros(n_targets * n_features))
+
+
