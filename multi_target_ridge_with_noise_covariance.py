@@ -3,6 +3,7 @@ from scipy.sparse.linalg import aslinearoperator, LinearOperator, cg
 from sklearn.linear_model.base import LinearModel
 from sklearn.decomposition import FactorAnalysis
 
+from scipy.optimize import fmin_l_bfgs_b
 
 
 def _diagonal_operator(diag):
@@ -158,10 +159,21 @@ class MultiTaskRidge(LinearModel):
         self.cg_callback = cg_callback
 
     def fit(self, X, Y):
-        self.linop = get_grad_linop(X, Y, 
+        self.linop = get_grad_linop(X, Y,
                                self.invcovB, self.invcovN, self.alpha)
-        self.coef_ = cg(self.linop, np.zeros(X.shape[1] * Y.shape[1]),
-                        callback=self.cg_callback, tol=1e-12)
+        # self.coef_ = cg(self.linop, np.zeros(X.shape[1] * Y.shape[1]),
+        #                 callback=self.cg_callback, tol=1e-12)
+        def f(vecB):
+            B = vecB.reshape(Y.shape[1], X.shape[1]).T
+            return energy_functional(X, Y, B, 
+                                     self.invcovB, self.invcovN, self.alpha)
+
+        def grad_f(vecB):
+            return self.linop.matvec(vecB)
+
+        self.coef_ = fmin_l_bfgs_b(f, np.zeros([Y.shape[1] * X.shape[1]]),
+            grad_f, pgtol=1e-12, iprint=3)[0].reshape(Y.shape[1], 
+                                                      X.shape[1])
 
         return self
 
