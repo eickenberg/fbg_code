@@ -90,6 +90,11 @@ def rank_constrained_least_squares(X, Y, rank, alpha1, alpha2=None,
             U, s, VT = svds(ridge_coef, k=rank)
             V = VT.T * np.sqrt(s)
             U *= np.sqrt(s)[np.newaxis, :]
+    else:
+        V = V0.copy()
+        if U0 is None:
+            raise Exception
+        U = U0.copy()
 
     initial_UV_vec = np.vstack([U, V]).ravel()
 
