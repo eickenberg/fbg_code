@@ -1,7 +1,8 @@
 import numpy as np
-from scipy.sparse.linalg import aslinearoperator, LinearOperator
+from scipy.sparse.linalg import aslinearoperator, LinearOperator, cg
 from sklearn.linear_model.base import LinearModel
 from sklearn.decomposition import FactorAnalysis
+
 
 
 def _diagonal_operator(diag):
@@ -135,10 +136,19 @@ def get_grad_linop(X, Y, invcovB, invcovN, alpha):
 class MultiTaskRidge(LinearModel):
 
     def __init__(self, invcovB=None, invcovN=None, alpha=1.):
-        self.covB = covB
-        self.covN = covN
+        self.invcovB = invcovB
+        self.invcovN = invcovN
         self.alpha = alpha
+
+    def fit(self, X, Y):
+        linop = get_grad_linop(X, Y, 
+                               self.invcovB, self.invcovN, self.alpha)
+        self.coef_ = cg(linop, np.zeros(X.shape[1] * Y.shape[1]))
+
+        return self
+
 
 
 if __name__ == "__main__":
     test_woodbury_inverse()
+    
