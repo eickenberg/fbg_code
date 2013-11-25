@@ -91,8 +91,9 @@ def get_inv_diag_plus_low_rank_cov_op(X, rank=2):
     noise_vars = fa.noise_variance_
     activations = fa.transform(X)
 
-    return _woodbury_inverse(_diagonal_operator(noise_vars),
-                 aslinearoperator(activations.T.dot(activations)),
+    return _woodbury_inverse(_diagonal_operator(1. / noise_vars),
+                 aslinearoperator(np.linalg.inv(1. / len(activations) * 
+                                  activations.T.dot(activations))),
                  components.T, components)
 
 
