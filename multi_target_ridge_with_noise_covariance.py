@@ -124,7 +124,7 @@ def get_grad_linop(X, Y, invcovB, invcovN, alpha):
             XTXB = XTX.matvec(vecB.reshape(T, P).T)
             XTXB_invcovN = invcovN.rmatvec(XTXB.T).T
             B_incovB = invcovB.rmatvec(vecB.reshape(T, P)).T
-            result =  XTXB - XTYinvcovN + alpha * B_incovB
+            result = XTXB_invcovN - XTYinvcovN + alpha * B_incovB
             return result.T.ravel()
     else:
         raise(Exception)
@@ -150,15 +150,18 @@ def get_grad_linop(X, Y, invcovB, invcovN, alpha):
 
 class MultiTaskRidge(LinearModel):
 
-    def __init__(self, invcovB=None, invcovN=None, alpha=1.):
+    def __init__(self, invcovB=None, invcovN=None, alpha=1., 
+                 cg_callback=None):
         self.invcovB = invcovB
         self.invcovN = invcovN
         self.alpha = alpha
+        self.cg_callback = cg_callback
 
     def fit(self, X, Y):
         self.linop = get_grad_linop(X, Y, 
                                self.invcovB, self.invcovN, self.alpha)
-        self.coef_ = cg(self.linop, np.zeros(X.shape[1] * Y.shape[1]))
+        self.coef_ = cg(self.linop, np.zeros(X.shape[1] * Y.shape[1]),
+                        callback=self.cg_callback, tol=1e-12)
 
         return self
 
@@ -173,9 +176,11 @@ if __name__ == "__main__":
 
     rng = np.random.RandomState(42)
 
-    signal_levels = rng.randn(n_targets) ** 2
+    # signal_levels = rng.randn(n_targets) ** 2
+    signal_levels = np.ones(n_targets)
     global_SNR = 1
-    SNRs = rng.randn(n_targets) ** 2 * global_SNR
+    # SNRs = rng.randn(n_targets) ** 2 * global_SNR
+    SNRs = np.ones(n_targets) * global_SNR
 
     beta = rng.randn(n_features, n_targets) * signal_levels
 
@@ -187,18 +192,22 @@ if __name__ == "__main__":
     noise = rng.randn(n_samples, n_targets)
     noise /= noise.std(0)
 
-    Y_train_noisy = Y_train_clean + signal_level / SNRs * noise
+    Y_train_noisy = Y_train_clean + signal_levels / SNRs * noise
 
     ridge.fit(X_train, Y_train_noisy)
     ridge_coef = ridge.coef_
 
-    signal_cov = np.diag(ridge.best_alphas)
+    # signal_cov = np.diag(ridge.best_alphas)
+    signal_cov = np.diag(np.ones(n_targets))
     noise_cov = np.diag(SNRs)
 
     signal_inv_cov = aslinearoperator(np.linalg.inv(signal_cov))
     noise_inv_cov = aslinearoperator(np.linalg.inv(noise_cov))
 
-    mtr = MultiTaskRidge(signal_inv_cov, noise_inv_cov, 1.)
+    def cb(*args):
+        print "hello"
+
+    mtr = MultiTaskRidge(signal_inv_cov, noise_inv_cov, 1., cg_callback=cb)
 
     mtr.fit(X_train, Y_train_noisy)
     result = mtr.coef_
@@ -211,10 +220,8 @@ if __name__ == "__main__":
                                  Y_train_noisy, 
                                  B, signal_inv_cov, noise_inv_cov, 1.)
 
-
     def grad_f(vecB):
         return mtr.linop.matvec(vecB)
 
-    err = check_grad(f, grad_f, np.zeros(n_targets * n_features))
-
+    err = check_grad(f, grad_f, np.ones(n_targets * n_features))
 
