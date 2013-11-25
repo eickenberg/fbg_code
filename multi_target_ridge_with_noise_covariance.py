@@ -228,12 +228,14 @@ if __name__ == "__main__":
 
     def f(vecB):
         B = vecB.reshape(n_targets, n_features).T
-        return energy_functional(X_train, 
-                                 Y_train_noisy, 
+        return energy_functional(X_train,
+                                 Y_train_noisy,
                                  B, signal_inv_cov, noise_inv_cov, 1.)
 
     def grad_f(vecB):
         return mtr.linop.matvec(vecB)
 
     err = check_grad(f, grad_f, np.ones(n_targets * n_features))
+
+
 
