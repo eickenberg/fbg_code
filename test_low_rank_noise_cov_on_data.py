@@ -19,6 +19,6 @@ sdeltrnstim = scipy.sparse.csr_matrix(deltrnstim)
 ebamask = cortex.get_roi_mask("MLfs", "20121210ML_auto1", roi="EBA")["EBA"] > 0
 
 trndata = data.get_train(masked=ebamask)
-valdata_repeats = data.get_val(masked=ebamask, repeated=True)
+valdata_repeats = data.get_val(masked=ebamask, repeats=True)
 valdata = data.get_val(masked=ebamask)
 
