@@ -54,3 +54,6 @@ inv_signal_cov = aslinearoperator(dia_matrix(np.diag(ridge.best_alphas)))
 mtr = MultiTaskRidge(inv_signal_cov, inv_noise_cov, alpha=1.)
 
 mtr.fit(deltrnstim, trndata, warmstart=ridge.coef_)
+
+
+# now to estimate a better signal covariance
