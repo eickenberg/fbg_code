@@ -184,7 +184,8 @@ class MultiTaskRidge(LinearModel):
 
 
         self.coef_ = fmin_l_bfgs_b(f, warmstart,
-            grad_f, pgtol=1e-12, m=20,iprint=3)[0].reshape(Y.shape[1], 
+            grad_f, pgtol=1e-12, m=20,iprint=3,
+            maxfun=50)[0].reshape(Y.shape[1], 
                                                       X.shape[1])
 
         return self
