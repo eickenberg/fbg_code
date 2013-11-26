@@ -43,7 +43,7 @@ facov = 1. / len(ftcs) * \
     np.diag(fvar)
 
 
-n_design_features = 80
+n_design_features = 201
 design_matrix = np.random.randn(n_samples, n_design_features)
 
 betas = np.random.randn(n_design_features, n_features)
