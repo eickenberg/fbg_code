@@ -6,12 +6,14 @@ import cortex
 from multi_target_ridge_with_noise_covariance import \
     get_inv_diag_plus_low_rank_cov_op, MultiTaskRidge
 
+from ridge import _RidgeGridCV, _multi_corr_score, _multi_r2_score
+
 numtime = 1000
 
 
 # load stimuli
 trnstim = data.get_wordnet("train")
-valstim = data.get_wordnet("val")
+valstim = data.get_wordnet("val")[90:]
 
 delays = [2, 3, 4]
 deltrnstim = np.hstack([np.roll(trnstim, d, 0) for d in delays])
@@ -35,5 +37,12 @@ valdata_repeats = ((valdata_repeats -
 valdata_noise = valdata_repeats - valdata_repeats.mean(-1)[..., np.newaxis]
 
 inv_noise_cov = get_inv_diag_plus_low_rank_cov_op(
-    np.vstack(valdata_noise.transpose(2, 0, 1)))
+    np.vstack(valdata_noise.transpose(2, 0, 1)), rank=10)
 
+
+# fit Independent Ridge Regression
+ridge = _RidgeGridCV(alpha_min=1., alpha_max=1000.)
+ridge.fit(deltrnstim, trndata)
+predictions = ridge.predict(delvalstim)
+
+corr_scores = _multi_r2_score(valdata, predictions)
