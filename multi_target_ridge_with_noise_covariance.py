@@ -3,6 +3,7 @@ from scipy.sparse.linalg import aslinearoperator, LinearOperator, cg
 from sklearn.linear_model.base import LinearModel
 from sklearn.decomposition import FactorAnalysis
 
+from scipy.optimize import fmin_l_bfgs_b
 
 
 def _diagonal_operator(diag):
@@ -90,8 +91,9 @@ def get_inv_diag_plus_low_rank_cov_op(X, rank=2):
     noise_vars = fa.noise_variance_
     activations = fa.transform(X)
 
-    return _woodbury_inverse(_diagonal_operator(noise_vars),
-                 aslinearoperator(activations.T.dot(activations)),
+    return _woodbury_inverse(_diagonal_operator(1. / noise_vars),
+                 aslinearoperator(np.linalg.inv(1. / len(activations) * 
+                                  activations.T.dot(activations))),
                  components.T, components)
 
 
@@ -158,10 +160,21 @@ class MultiTaskRidge(LinearModel):
         self.cg_callback = cg_callback
 
     def fit(self, X, Y):
-        self.linop = get_grad_linop(X, Y, 
+        self.linop = get_grad_linop(X, Y,
                                self.invcovB, self.invcovN, self.alpha)
-        self.coef_ = cg(self.linop, np.zeros(X.shape[1] * Y.shape[1]),
-                        callback=self.cg_callback, tol=1e-12)
+        # self.coef_ = cg(self.linop, np.zeros(X.shape[1] * Y.shape[1]),
+        #                 callback=self.cg_callback, tol=1e-12)
+        def f(vecB):
+            B = vecB.reshape(Y.shape[1], X.shape[1]).T
+            return energy_functional(X, Y, B, 
+                                     self.invcovB, self.invcovN, self.alpha)
+
+        def grad_f(vecB):
+            return self.linop.matvec(vecB)
+
+        self.coef_ = fmin_l_bfgs_b(f, np.zeros([Y.shape[1] * X.shape[1]]),
+            grad_f, pgtol=1e-12, m=20,iprint=3)[0].reshape(Y.shape[1], 
+                                                      X.shape[1])
 
         return self
 
@@ -216,12 +229,14 @@ if __name__ == "__main__":
 
     def f(vecB):
         B = vecB.reshape(n_targets, n_features).T
-        return energy_functional(X_train, 
-                                 Y_train_noisy, 
-                                 B, signal_inv_cov, noise_inv_cov, 1.)
+        return energy_functional(X_train,
+                                 Y_train_noisy,
+                                 B, signal_inv_cov, noise_inv_cov, alpha=1.)
 
     def grad_f(vecB):
         return mtr.linop.matvec(vecB)
 
     err = check_grad(f, grad_f, np.ones(n_targets * n_features))
+
+
 
