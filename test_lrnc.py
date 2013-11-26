@@ -80,7 +80,29 @@ inv_noise_cov3 = aslinearoperator(inv_noise_cov)
 inv_noise_cov2 = get_inv_diag_plus_low_rank_cov_op(noise)
 inv_noise_cov = aslinearoperator(inv_facov)
 
-mtr = MultiTaskRidge(inv_signal_cov, inv_noise_cov)
+
+
+# now do the same test with independently gathered noise
+noise_tcs_indep = np.random.randn(n_samples, len(noise_features))
+noise_tcs_indep -= noise_tcs_indep.mean(0)
+noise_tcs_indep /= noise_tcs_indep.std(0)
+
+gauss_noise_indep = np.random.randn(n_samples, n_features)
+gauss_noise_indep -= gauss_noise_indep.mean(0)
+gauss_noise_indep /= gauss_noise_indep.std(0)
+gauss_noise_indep *= np.sqrt(feature_variances)
+
+noise_indep = noise_tcs_indep.dot(noise_features) + gauss_noise_indep
+
+noise_cov_indep = (noise_indep - noise_indep.mean(0)).T.dot(
+    noise_indep - noise_indep.mean(0))
+
+inv_noise_cov_indep = aslinearoperator(np.linalg.pinv(noise_cov_indep))
+inv_noise_cov_indep_op = get_inv_diag_plus_low_rank_cov_op(noise_indep,
+                                                           rank=2)
+
+
+mtr = MultiTaskRidge(inv_signal_cov, inv_noise_cov_indep_op, alpha=1.)
 
 mtr.fit(design_matrix[train], Y[train])
 test_pred_2 = mtr.coef_.dot(design_matrix[test].T).T

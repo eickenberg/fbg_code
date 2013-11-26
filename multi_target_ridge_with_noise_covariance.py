@@ -173,7 +173,7 @@ class MultiTaskRidge(LinearModel):
             return self.linop.matvec(vecB)
 
         self.coef_ = fmin_l_bfgs_b(f, np.zeros([Y.shape[1] * X.shape[1]]),
-            grad_f, pgtol=1e-12, iprint=3)[0].reshape(Y.shape[1], 
+            grad_f, pgtol=1e-12, m=20,iprint=3)[0].reshape(Y.shape[1], 
                                                       X.shape[1])
 
         return self
@@ -231,7 +231,7 @@ if __name__ == "__main__":
         B = vecB.reshape(n_targets, n_features).T
         return energy_functional(X_train,
                                  Y_train_noisy,
-                                 B, signal_inv_cov, noise_inv_cov, 1.)
+                                 B, signal_inv_cov, noise_inv_cov, alpha=1.)
 
     def grad_f(vecB):
         return mtr.linop.matvec(vecB)
