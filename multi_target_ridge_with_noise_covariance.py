@@ -159,7 +159,7 @@ class MultiTaskRidge(LinearModel):
         self.alpha = alpha
         self.cg_callback = cg_callback
 
-    def fit(self, X, Y):
+    def fit(self, X, Y, warmstart=None):
         self.linop = get_grad_linop(X, Y,
                                self.invcovB, self.invcovN, self.alpha)
         # self.coef_ = cg(self.linop, np.zeros(X.shape[1] * Y.shape[1]),
@@ -171,6 +171,17 @@ class MultiTaskRidge(LinearModel):
 
         def grad_f(vecB):
             return self.linop.matvec(vecB)
+        
+        if warmstart is None:
+            warmstart = np.zeros([Y.shape[1] * X.shape[1]])
+        elif warmstart.ndim = 2:
+            if warmstart.shape == (Y.shape[1], X.shape[1]):
+                warmstart = warmstart.ravel()
+            elif warmstart.shape == (X.shape[1], Y.shape[1]):
+                warmstart = warmstart.T.ravel()
+            else:
+                raise(Exception)
+
 
         self.coef_ = fmin_l_bfgs_b(f, np.zeros([Y.shape[1] * X.shape[1]]),
             grad_f, pgtol=1e-12, m=20,iprint=3)[0].reshape(Y.shape[1], 

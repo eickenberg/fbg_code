@@ -45,4 +45,12 @@ ridge = _RidgeGridCV(alpha_min=1., alpha_max=1000.)
 ridge.fit(deltrnstim, trndata)
 predictions = ridge.predict(delvalstim)
 
-corr_scores = _multi_r2_score(valdata, predictions)
+corr_scores = _multi_corr_score(valdata, predictions)
+
+from scipy.sparse.linalg import aslinearoperator
+from scipy.sparse import dia_matrix
+inv_signal_cov = aslinearoperator(dia_matrix(np.diag(ridge.best_alphas)))
+
+mtr = MultiTaskRidge(inv_signal_cov, inv_noise_cov, alpha=1.)
+
+mtr.fit(deltrnstim, trndata, warmstart=ridge.coef_)
