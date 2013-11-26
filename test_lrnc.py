@@ -100,14 +100,60 @@ noise_cov_indep = (noise_indep - noise_indep.mean(0)).T.dot(
 inv_noise_cov_indep = aslinearoperator(np.linalg.pinv(noise_cov_indep))
 inv_noise_cov_indep_op = get_inv_diag_plus_low_rank_cov_op(noise_indep,
                                                            rank=2)
+# mtr = MultiTaskRidge(inv_signal_cov, inv_noise_cov_indep_op, alpha=1.)
+
+# mtr.fit(design_matrix[train], Y[train])
+
+# test_pred_2 = mtr.coef_.dot(design_matrix[test].T).T
+# r2_scores_2 = _multi_r2_score(test_pred_2, Y[test])
+# corr_scores_2 = _multi_corr_score(test_pred_2, Y[test])
+
+# now lets try the same thing with noise estimated from an ensemble of runs
+# which can be heteroscedastic over runs
+
+num_test_samples = 100
+test_design_matrix = np.random.randn(num_test_samples, n_design_features)
+
+num_test_runs = 10
+
+test_signal = test_design_matrix.dot(betas)
+test_noise_tcs = np.random.randn(num_test_runs, num_test_samples,
+                                 len(noise_features))
+test_noise_tcs -= test_noise_tcs.mean(1)[:, np.newaxis, :]
+test_noise_tcs /= test_noise_tcs.std(1)[:, np.newaxis, :]
+
+lr_noise = test_noise_tcs.dot(noise_features)
+
+test_gauss = np.random.randn(num_test_runs, num_test_samples, n_features)
+test_gauss -= test_gauss.mean(1)[:, np.newaxis, :]
+test_gauss /= test_gauss.std(1)[:, np.newaxis, :]
+
+test_gauss *= np.sqrt(feature_variances)
+
+test_noise = lr_noise + test_gauss
+
+heteroscedastic = 1 + np.random.rand(num_test_runs)
+
+test_runs = test_signal[np.newaxis, ...] + \
+    heteroscedastic[:, np.newaxis, np.newaxis] * test_noise
+
+test_runs_zscore = ((test_runs - test_runs.mean(1)[:, np.newaxis, :]) / 
+                    test_runs.std(1)[:, np.newaxis, :])
+
+ensemble_noise = test_runs_zscore - test_runs_zscore.mean(0)[np.newaxis, ...]
+
+ensemble_noise = np.vstack(ensemble_noise)
+
+ens_inv_cov_op = get_inv_diag_plus_low_rank_cov_op(ensemble_noise, rank=2)
 
 
-mtr = MultiTaskRidge(inv_signal_cov, inv_noise_cov_indep_op, alpha=1.)
+mtr = MultiTaskRidge(inv_signal_cov, ens_inv_cov_op, alpha=1.)
 
 mtr.fit(design_matrix[train], Y[train])
 test_pred_2 = mtr.coef_.dot(design_matrix[test].T).T
 r2_scores_2 = _multi_r2_score(test_pred_2, Y[test])
 corr_scores_2 = _multi_corr_score(test_pred_2, Y[test])
+
 
 import pylab as pl
 pl.figure()
