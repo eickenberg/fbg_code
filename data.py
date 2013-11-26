@@ -43,8 +43,8 @@ def get_train(sessions=None, masked=True):
             [tables.openFile(t).getNode('/data').read()[:, mask]
             for t in [train_files[i] for i in sessions]])
     elif isinstance(masked, np.ndarray):
-	mask = masked
-	return np.concatenate(
+        mask = masked
+        return np.concatenate(
             [tables.openFile(t).getNode('/data').read()[:, mask]
             for t in [train_files[i] for i in sessions]])
     else:
@@ -72,7 +72,8 @@ def get_val(sessions=None, masked=True, repeats=False):
     else:
         if isinstance(masked, bool) and masked:
             #mask = get_mask()
-            mask = cortex.get_cortical_mask("MLfs", "20121210ML_auto1", "thick")
+            mask = cortex.get_cortical_mask("MLfs",
+                                            "20121210ML_auto1", "thick")
             return np.concatenate(
                 [tables.openFile(t).getNode('/data').read()[:, mask]
                  for t in [val_files[i] for i in sessions]])
@@ -100,19 +101,22 @@ def get_wordnet(mode="train", combined=True):
     return tables.openFile(wn_stimuli).getNode("/" + node).read()
 
 
-def get_gabor(mode="train", combined=True):
+def get_gabor(mode="train", combined=False):
+    tf = tables.openFile(gabor_stimuli)
+    stims = tf.root.stim.read()
 
     if mode == "train":
-        node = "Rstim"
+        sec_stim = stims[:, :7200]
     elif mode == "val":
-        node = "Pstim"
+        sec_stim = stims[:, 7200:]
     else:
         raise Exception("%s not understood" % mode)
 
     if combined:
-        node = "comb%s" % node
+        sec_stim = stims
 
-    return tables.openFile(gabor_stimuli).getNode("/" + node).read()
+    stim = (sec_stim[:, ::2] + sec_stim[:, 1::2]) / 2.0
+    return stim
 
 
 nifti_files = [os.path.join(DATA_DIR, s) for s in

@@ -63,7 +63,7 @@ ridge = _RidgeGridCV(alpha_min=1., alpha_max=1000., n_grid_points=5,
 ridge_coefs = ridge.fit(sdeltrnstim, trndata).coef_.T
 Uridge, sridge, VridgeT = np.linalg.svd(ridge_coefs, full_matrices=False)
 
-ranks = [1, 20, 50, 100, 500]
+ranks = [1, 2, 5, 10, 20, 30, 40, 50, 100, 200, 500, 1000, 2000, 4000, 6000]
 
 results = []
 corr_scores = []
@@ -73,22 +73,22 @@ ridge_r2_scores = []
 
 for r in ranks:
     print "Rank: %d" % r
-    U_, V_, something = result = \
-        rank_k_bfgs.rank_constrained_least_squares(sdeltrnstim, trndata, r,
-                                                        0.1, 0.1,
-                   # U0=rng.randn(X_train.shape[1], r),
-                   # V0=rng.randn(Y_train_noisy.shape[1], r),
-                     U0=Uridge[:, :r] * np.sqrt(sridge[:r]),
-                     V0=VridgeT[:r].T * np.sqrt(sridge[:r]),
-                     max_bfgs_iter=2000
-                                                   )
-    results.append(result)
+    ## U_, V_, something = result = \
+    ##     rank_k_bfgs.rank_constrained_least_squares(sdeltrnstim, trndata, r,
+    ##                                                     0.1, 0.1,
+    ##                # U0=rng.randn(X_train.shape[1], r),
+    ##                # V0=rng.randn(Y_train_noisy.shape[1], r),
+    ##                  U0=Uridge[:, :r] * np.sqrt(sridge[:r]),
+    ##                  V0=VridgeT[:r].T * np.sqrt(sridge[:r]),
+    ##                  max_bfgs_iter=2000
+    ##                                                )
+    ## results.append(result)
 
-    predictions = sdelvalstim.dot(U_).dot(V_.T)
-    corr_scores.append(_multi_corr_score(valdata,
-                                         predictions[:, :trndata_roi.shape[1]]))
-    r2_scores.append(_multi_r2_score(valdata,
-                                    predictions[:, :trndata_roi.shape[1]]))
+    ## predictions = sdelvalstim.dot(U_).dot(V_.T)
+    ## corr_scores.append(_multi_corr_score(valdata,
+    ##                                      predictions[:, :trndata_roi.shape[1]]))
+    ## r2_scores.append(_multi_r2_score(valdata,
+    ##                                 predictions[:, :trndata_roi.shape[1]]))
 
     rank_k_ridge_coefs = Uridge[:, :r].dot(
         sridge[:r][:, np.newaxis] * VridgeT[:r, :])
@@ -103,41 +103,44 @@ for r in ranks:
 n_targets = trndata.shape[1]
 pl.figure(1)
 pl.clf()
-corr_array = np.nan_to_num(np.array(corr_scores))
-# pl.plot(ranks, corr_array, 'k-', lw=0.5)
-pl.errorbar(ranks,
-            corr_array.mean(axis=1),
-            yerr=corr_array.std(axis=1) / np.sqrt(n_targets),
-            elinewidth=2,
-            linewidth=2,
-            color="r")
+## corr_array = np.nan_to_num(np.array(corr_scores))
+## # pl.plot(ranks, corr_array, 'k-', lw=0.5)
+## pl.errorbar(ranks,
+##             corr_array.mean(axis=1),
+##             yerr=corr_array.std(axis=1) / np.sqrt(n_targets),
+##             elinewidth=2,
+##             linewidth=2,
+##             color="r")
 ridge_corr_array = np.nan_to_num(np.array(ridge_corr_scores))
-pl.errorbar(ranks,
+pl.errorbar(np.log(ranks),
             ridge_corr_array.mean(axis=1),
             yerr=ridge_corr_array.std(axis=1) / np.sqrt(n_targets),
             elinewidth=2,
             linewidth=2,
             color="b")
-max_corr = max(corr_array.mean(1).max(), ridge_corr_array.mean(1).max())
-pl.axis([0, max(ranks), -.1, max_corr + 0.1])
+pl.xticks(np.log(ranks), ranks)
+    #max_corr = max(corr_array.mean(1).max(), ridge_corr_array.mean(1).max())
+max_corr = ridge_corr_array.mean(1).max()
+#pl.axis([0, max(ranks), -.1, max_corr + 0.1])
 pl.title("Correlation scores")
 
 pl.figure(2)
 pl.clf()
 # pl.plot(np.array(r2_scores), 'k-', lw=0.5)
-r2_array = np.nan_to_num(np.array(r2_scores))
-pl.errorbar(ranks,
-            r2_array.mean(axis=1),
-            yerr=r2_array.std(axis=1) / np.sqrt(n_targets),
-            elinewidth=2,
-            linewidth=2,
-            color="r")
+## r2_array = np.nan_to_num(np.array(r2_scores))
+## pl.errorbar(ranks,
+##             r2_array.mean(axis=1),
+##             yerr=r2_array.std(axis=1) / np.sqrt(n_targets),
+##             elinewidth=2,
+##             linewidth=2,
+##             color="r")
 ridge_r2_array = np.nan_to_num(np.array(ridge_r2_scores))
-pl.errorbar(ranks,
+pl.errorbar(np.log(ranks),
             ridge_r2_array.mean(axis=1),
             yerr=ridge_r2_array.std(axis=1) / np.sqrt(n_targets),
             elinewidth=2,
             linewidth=2,
             color="b")
-pl.axis([0, max(ranks), -1.1, 1.1])
+    #pl.axis([0, max(ranks), -1.1, 1.1])
+pl.xticks(np.log(ranks), ranks)
 pl.title("R2 scores")
