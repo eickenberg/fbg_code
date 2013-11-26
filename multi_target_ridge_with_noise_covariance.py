@@ -129,10 +129,10 @@ def get_grad_linop(X, Y, invcovB, invcovN, alpha):
             result = XTXB_invcovN - XTYinvcovN + alpha * B_incovB
             return result.T.ravel()
     else:
-        raise(Exception)
+        # raise(Exception)
         def matvec(vecB):
             XB_minus_Y_invcovN = invcovN.rmatvec(
-                (X.dot(vecB.reshape(T, P).T) - Y).T)
+                (X.dot(vecB.reshape(T, P).T) - Y).T).T
             XT_XB_minus_Y_invcovN = X.T.dot(XB_minus_Y_invcovN)
             B_incovB = invcovB.rmatvec(vecB.reshape(T, P)).T
             result = XT_XB_minus_Y_invcovN + alpha * B_incovB
