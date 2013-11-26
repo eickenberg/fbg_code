@@ -36,8 +36,6 @@ valdata_repeats = ((valdata_repeats -
 
 valdata_noise = valdata_repeats - valdata_repeats.mean(-1)[..., np.newaxis]
 
-inv_noise_cov = get_inv_diag_plus_low_rank_cov_op(
-    np.vstack(valdata_noise.transpose(2, 0, 1)), rank=10)
 
 
 # fit Independent Ridge Regression
@@ -49,11 +47,33 @@ corr_scores = _multi_corr_score(valdata, predictions)
 
 from scipy.sparse.linalg import aslinearoperator
 from scipy.sparse import dia_matrix
+
+inv_noise_cov = get_inv_diag_plus_low_rank_cov_op(
+    np.vstack(valdata_noise.transpose(2, 0, 1)), rank=30)
+
 inv_signal_cov = aslinearoperator(dia_matrix(np.diag(ridge.best_alphas)))
 
 mtr = MultiTaskRidge(inv_signal_cov, inv_noise_cov, alpha=1.)
 
 mtr.fit(deltrnstim, trndata, warmstart=ridge.coef_)
 
+mtr_pred = delvalstim.dot(mtr.coef_.T)
+
+mtr_corr = _multi_corr_score(valdata, mtr_pred)
+
+
 
 # now to estimate a better signal covariance
+ipsmask = cortex.get_roi_mask("MLfs", 
+                              "20121210ML_auto1", roi="IPS")["IPS"] > 0
+
+from sklearn.cluster import WardAgglomeration
+ward = WardAgglomeration(n_clusters=50)
+
+ips_trn_data = data.get_train(masked=ipsmask)
+ips_val_data_repeated = data.get_val(masked=ipsmask, repeated=True)[:90]
+ips_val_data = data.get_val(masked=ipsmask)[90:]
+
+
+v4mask = cortex.get_roi_mask("MLfs",
+                             "20121210ML_auto1", roi="V4")["IPS"] > 0
