@@ -174,7 +174,7 @@ class MultiTaskRidge(LinearModel):
         
         if warmstart is None:
             warmstart = np.zeros([Y.shape[1] * X.shape[1]])
-        elif warmstart.ndim = 2:
+        elif warmstart.ndim == 2:
             if warmstart.shape == (Y.shape[1], X.shape[1]):
                 warmstart = warmstart.ravel()
             elif warmstart.shape == (X.shape[1], Y.shape[1]):
@@ -183,7 +183,7 @@ class MultiTaskRidge(LinearModel):
                 raise(Exception)
 
 
-        self.coef_ = fmin_l_bfgs_b(f, np.zeros([Y.shape[1] * X.shape[1]]),
+        self.coef_ = fmin_l_bfgs_b(f, warmstart,
             grad_f, pgtol=1e-12, m=20,iprint=3)[0].reshape(Y.shape[1], 
                                                       X.shape[1])
 
