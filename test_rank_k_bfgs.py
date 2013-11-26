@@ -82,6 +82,7 @@ for r in ranks:
 
 
 import pylab as pl
+n_targets = trndata.shape[1]
 pl.figure(1)
 pl.clf()
 corr_array = np.array(corr_scores)
