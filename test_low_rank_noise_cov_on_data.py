@@ -41,6 +41,7 @@ inv_noise_cov = get_inv_diag_plus_low_rank_cov_op(
 
 
 # fit Independent Ridge Regression
+ridge = _RidgeGridCV(alpha_min=1., alpha_max=1000.)
 ridge.fit(deltrnstim, trndata)
 predictions = ridge.predict(delvalstim)
 
