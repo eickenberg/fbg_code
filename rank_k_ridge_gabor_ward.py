@@ -4,13 +4,12 @@ import cortex
 import scipy.sparse
 from sklearn.cluster import WardAgglomeration
 from sklearn.feature_extraction import image
-import rank_k_bfgs
 import pylab as pl
 
 from ridge import _multi_corr_score, _multi_r2_score
 
-numtime = 1000
-numclusters = 100
+numtime = 3600
+numclusters = 1500
 
 # Load stimuli
 trnstim = data.get_gabor("train").T
@@ -31,28 +30,48 @@ sdelvalstim = delvalstim = np.nan_to_num(zs(delvalstim))
 # Select some voxels
 cort_mask = cortex.get_cortical_mask("MLfs", "20121210ML_auto1", "thick")
 #rois = ["V1", "V2", "V3"]
-rois = ["V1"]
+#rois = ["V1"]
+rois = ["IPS"]
 masks = [cortex.get_roi_mask("MLfs",
                              "20121210ML_auto1",
                              roi=roi)[roi] > 0 for roi in rois]
 roimask = reduce(lambda x, y: (x + y), masks)
-wardmask = cort_mask - roimask
+
+#wardrois = ["FFA", "PPA", "EBA"]
+wardrois = ["V1", "V2", "V3"]
+wardmasks = [cortex.get_roi_mask("MLfs",
+                             "20121210ML_auto1",
+                             roi=roi)[roi] > 0 for roi in wardrois]
+wardmask = reduce(lambda x, y: (x + y), wardmasks)
+#wardmask = cort_mask - roimask
 
 # Load training, test fMRI data
 trndata_roi = np.nan_to_num(data.get_train(masked=roimask)[:numtime])
-trndata_ward = np.nan_to_num(data.get_train(masked=wardmask)[:numtime])
 
-connectivity = image.grid_to_graph(n_x=wardmask.shape[0],
-                                   n_y=wardmask.shape[1],
-                                   n_z=wardmask.shape[2],
-    mask=wardmask)
-ward = WardAgglomeration(n_clusters=numclusters, connectivity=connectivity,
-                         memory='nilearn_cache')
-ward.fit(trndata_ward)
-labels = ward.labels_
-trndata_collapsed = np.array([trndata_ward[:, labels == i].mean(1)
-                              for i in range(numclusters)])
-trndata = np.hstack((trndata_roi, trndata_collapsed.T))
+if numclusters > 0:
+    if numclusters < wardmask.sum():
+        print "Running ward clustering..."
+        trndata_ward = np.nan_to_num(data.get_train(masked=wardmask)[:numtime])
+
+        connectivity = image.grid_to_graph(n_x=wardmask.shape[0],
+                                           n_y=wardmask.shape[1],
+                                           n_z=wardmask.shape[2],
+            mask=wardmask)
+        ward = WardAgglomeration(n_clusters=numclusters,
+                                 connectivity=connectivity,
+                                 memory='nilearn_cache')
+        ward.fit(trndata_ward)
+        labels = ward.labels_
+
+        trndata_collapsed = np.array([trndata_ward[:, labels == i].mean(1)
+                                      for i in range(numclusters)])
+    else:
+        print "You asked for more clusters than there are voxels, just using voxels.."
+        trndata_collapsed = trndata_ward.T
+    trndata = np.hstack((trndata_roi, zs(trndata_collapsed.T)))
+else:
+    trndata = trndata_roi
+
 valdata = data.get_val(masked=roimask)
 
 from ridge import _RidgeGridCV
@@ -63,7 +82,7 @@ ridge = _RidgeGridCV(alpha_min=1., alpha_max=1000., n_grid_points=5,
 ridge_coefs = ridge.fit(sdeltrnstim, trndata).coef_.T
 Uridge, sridge, VridgeT = np.linalg.svd(ridge_coefs, full_matrices=False)
 
-ranks = [1, 2, 5, 10, 20, 30, 40, 50, 100, 200, 500, 1000, 2000, 4000, 6000]
+ranks = [1, 2, 5, 10, 15, 20, 30, 40, 50, 100, 200, 500, 1000, 2000, 4000, 6000]
 
 results = []
 corr_scores = []
@@ -101,8 +120,8 @@ for r in ranks:
 
 
 n_targets = trndata.shape[1]
-pl.figure(1)
-pl.clf()
+pl.figure(2)
+#pl.clf()
 ## corr_array = np.nan_to_num(np.array(corr_scores))
 ## # pl.plot(ranks, corr_array, 'k-', lw=0.5)
 ## pl.errorbar(ranks,
@@ -117,30 +136,31 @@ pl.errorbar(np.log(ranks),
             yerr=ridge_corr_array.std(axis=1) / np.sqrt(n_targets),
             elinewidth=2,
             linewidth=2,
-            color="b")
+            fmt=":",
+            color="k")
 pl.xticks(np.log(ranks), ranks)
     #max_corr = max(corr_array.mean(1).max(), ridge_corr_array.mean(1).max())
 max_corr = ridge_corr_array.mean(1).max()
 #pl.axis([0, max(ranks), -.1, max_corr + 0.1])
 pl.title("Correlation scores")
 
-pl.figure(2)
-pl.clf()
-# pl.plot(np.array(r2_scores), 'k-', lw=0.5)
-## r2_array = np.nan_to_num(np.array(r2_scores))
-## pl.errorbar(ranks,
-##             r2_array.mean(axis=1),
-##             yerr=r2_array.std(axis=1) / np.sqrt(n_targets),
+## pl.figure(2)
+## #pl.clf()
+## # pl.plot(np.array(r2_scores), 'k-', lw=0.5)
+## ## r2_array = np.nan_to_num(np.array(r2_scores))
+## ## pl.errorbar(ranks,
+## ##             r2_array.mean(axis=1),
+## ##             yerr=r2_array.std(axis=1) / np.sqrt(n_targets),
+## ##             elinewidth=2,
+## ##             linewidth=2,
+## ##             color="r")
+## ridge_r2_array = np.nan_to_num(np.array(ridge_r2_scores))
+## pl.errorbar(np.log(ranks),
+##             ridge_r2_array.mean(axis=1),
+##             yerr=ridge_r2_array.std(axis=1) / np.sqrt(n_targets),
 ##             elinewidth=2,
 ##             linewidth=2,
-##             color="r")
-ridge_r2_array = np.nan_to_num(np.array(ridge_r2_scores))
-pl.errorbar(np.log(ranks),
-            ridge_r2_array.mean(axis=1),
-            yerr=ridge_r2_array.std(axis=1) / np.sqrt(n_targets),
-            elinewidth=2,
-            linewidth=2,
-            color="b")
-    #pl.axis([0, max(ranks), -1.1, 1.1])
-pl.xticks(np.log(ranks), ranks)
-pl.title("R2 scores")
+##             color="b")
+##     #pl.axis([0, max(ranks), -1.1, 1.1])
+## pl.xticks(np.log(ranks), ranks)
+## pl.title("R2 scores")
